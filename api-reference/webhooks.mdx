@@ -23,8 +23,8 @@ We send three types of webhook events:
 
 Webhooks are available in two environments:
 
-- **Production** - Real campaign calls (`https://api.example.com/webhooks`)
-- **Testing** - Test calls made through dashboard (`https://api-sandbox.example.com/webhooks`)
+- **Production** - Real campaign calls
+- **Testing** - Test calls made through dashboard 
 
 <Warning>
   Test calls made through the dashboard are not stored in our system. Make sure to store the webhook data if you need to reference it later.
@@ -38,25 +38,77 @@ Regular calls made through your campaigns include campaign-specific fields like 
 ### Test Calls
 Calls made through the web interface for testing purposes. These omit campaign-specific fields and can be identified by their `web_` prefix in the `call.id`.
 
+## Security
+
+### Webhook Signatures
+
+All webhook requests include a signature in the `X-Yumeru-Signature` header. You should verify this signature to ensure the webhook came from Yumeru:
+
+```typescript
+import crypto from 'crypto';
+
+function verifySignature(payload: unknown, signature: string, secret: string): boolean {
+  const hmac = crypto.createHmac('sha256', secret);
+  hmac.update(JSON.stringify(payload));
+  const expectedSignature = hmac.digest('hex');
+  
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expectedSignature)
+  );
+}
+```
+
+### Webhook Secrets
+- Secrets are prefixed with `whsec_` and are base64url encoded
+- Store your webhook secret securely
+
 ## Event Structure
 
 ### Common Fields
 All webhook events include these base fields:
 
-```json
-{
-  "event": "call_started",
-  "call": {
-    "id": "string",
-    "type": "string",
-    "agent_id": "string",
-    "dynamic_variables": {},
-    "status": "string",
-    "start_timestamp": 1738537527378,
-    "from_number": "string",
-    "to_number": "string",
-    "direction": "string"
-  }
+```typescript
+interface YumeruWebhookEvent {
+  event: "call_started" | "call_ended" | "call_analyzed";
+  call: {
+    id: string;
+    type: "web_call" | "phone_call";
+    agent_id: string;
+    campaign_id?: number;
+    target_id?: number;
+    dynamic_variables: Record<string, string>;
+    status: string;
+    start_timestamp: number;
+    end_timestamp?: number;
+    duration_ms?: number;
+    total_duration_seconds?: number;
+    recording_url?: string;
+    disconnection_reason?: string;
+    from_number: string;
+    to_number: string;
+    direction: "inbound" | "outbound";
+    transcript?: string;
+    transcript_object?: Array<{
+      role: "agent" | "user";
+      content: string;
+      words: Array<{
+        word: string;
+        start: number;
+        end: number;
+      }>;
+      metadata?: {
+        response_id: number;
+      };
+    }>;
+    call_analysis?: {
+      call_summary: string;
+      in_voicemail: boolean;
+      user_sentiment: string;
+      call_successful: boolean;
+      custom_analysis_data: Record<string, unknown>;
+    };
+  };
 }
 ```
 
@@ -79,12 +131,33 @@ All webhook events include these base fields:
     "start_timestamp": 1738537527378,
     "end_timestamp": 1738537551414,
     "duration_ms": 24036,
+    "total_duration_seconds": 24,
     "recording_url": "https://example.com/recording.wav",
     "disconnection_reason": "user_hangup",
     "from_number": "+12185856761",
     "to_number": "+528443804581",
     "direction": "outbound",
-    "transcript": "Full conversation transcript..."
+    "transcript": "Full conversation transcript...",
+    "transcript_object": [
+      {
+        "role": "agent",
+        "content": "Hello, this is...",
+        "words": [
+          {
+            "word": "Hello",
+            "start": 0.5,
+            "end": 0.9
+          }
+        ]
+      }
+    ],
+    "call_analysis": {
+      "call_summary": "The call was successful...",
+      "in_voicemail": false,
+      "user_sentiment": "positive",
+      "call_successful": true,
+      "custom_analysis_data": {}
+    }
   }
 }
 ```
@@ -122,6 +195,7 @@ All webhook events include these base fields:
 - Always verify webhook signatures using your webhook secret
 - Only accept webhooks over HTTPS
 - Rotate webhook secrets periodically
+- Store webhook secrets securely, never in code
 
 ### Implementation
 - Process webhooks asynchronously
@@ -129,7 +203,7 @@ All webhook events include these base fields:
 - Implement retry logic for failed webhook deliveries
 - Store raw webhook payloads for debugging
 - Handle duplicate deliveries (use `call.id` for idempotency)
-- Check `call.id` prefix to differentiate test/campaign calls
+- Check `call.id` prefix to differentiate test/campaign calls & call types (web_call will always be a test call)
 - Don't assume campaign fields will be present
 
 ### Error Handling
@@ -137,7 +211,8 @@ All webhook events include these base fields:
 - Log failed webhook deliveries
 - Alert on repeated failures
 - Implement dead letter queues for failed webhooks
+- Handle timeouts gracefully
 
 <Note>
-  Need help implementing webhooks? Contact our [support team](mailto:support@example.com) for assistance.
+  Need help implementing webhooks? Contact our [support team](mailto:sebastian@yumeru.ai) for assistance.
 </Note> 

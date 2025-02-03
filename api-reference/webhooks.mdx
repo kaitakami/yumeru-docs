@@ -203,7 +203,7 @@ interface YumeruWebhookEvent {
 - Implement retry logic for failed webhook deliveries
 - Store raw webhook payloads for debugging
 - Handle duplicate deliveries (use `call.id` for idempotency)
-- Check `call.id` prefix to differentiate test/campaign calls & call types (web_call will always be a test call)
+- Check `call.id` prefix to differentiate test/campaign calls & call types (web_call will be a test call)
 - Don't assume campaign fields will be present
 
 ### Error Handling

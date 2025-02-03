@@ -1,0 +1,143 @@
+---
+title: 'Webhooks'
+description: 'Real-time notifications for call events'
+---
+
+<Note>
+  Webhooks are only available for Enterprise customers. Make sure you have the right access level before implementing webhooks.
+</Note>
+
+## Overview
+
+Webhooks allow you to receive real-time notifications when events occur in your account. We'll send HTTP POST requests to your configured endpoint with event data whenever a call is started, ended, or analyzed.
+
+## Event Types
+
+We send three types of webhook events:
+
+- `call_started` - Triggered when a call begins
+- `call_ended` - Triggered when a call completes
+- `call_analyzed` - Triggered when our AI finishes analyzing the call
+
+## Environments
+
+Webhooks are available in two environments:
+
+- **Production** - Real campaign calls (`https://api.example.com/webhooks`)
+- **Testing** - Test calls made through dashboard (`https://api-sandbox.example.com/webhooks`)
+
+<Warning>
+  Test calls made through the dashboard are not stored in our system. Make sure to store the webhook data if you need to reference it later.
+</Warning>
+
+## Call Types
+
+### Campaign Calls
+Regular calls made through your campaigns include campaign-specific fields like `campaign_id` and `target_id`. These calls are stored in our system for tracking and analytics.
+
+### Test Calls
+Calls made through the web interface for testing purposes. These omit campaign-specific fields and can be identified by their `web_` prefix in the `call.id`.
+
+## Event Structure
+
+### Common Fields
+All webhook events include these base fields:
+
+```json
+{
+  "event": "call_started",
+  "call": {
+    "id": "string",
+    "type": "string",
+    "agent_id": "string",
+    "dynamic_variables": {},
+    "status": "string",
+    "start_timestamp": 1738537527378,
+    "from_number": "string",
+    "to_number": "string",
+    "direction": "string"
+  }
+}
+```
+
+### Example: Campaign Call
+
+```json
+{
+  "event": "call_ended",
+  "call": {
+    "id": "609c893e-316f-4f94-85a3-ad68a6975c66",
+    "type": "phone_call",
+    "agent_id": "1234",
+    "campaign_id": 158,
+    "target_id": 1482,
+    "dynamic_variables": {
+      "prospect_name": "John Doe",
+      "company_name": "Acme Inc"
+    },
+    "status": "ended",
+    "start_timestamp": 1738537527378,
+    "end_timestamp": 1738537551414,
+    "duration_ms": 24036,
+    "recording_url": "https://example.com/recording.wav",
+    "disconnection_reason": "user_hangup",
+    "from_number": "+12185856761",
+    "to_number": "+528443804581",
+    "direction": "outbound",
+    "transcript": "Full conversation transcript..."
+  }
+}
+```
+
+### Example: Test Call
+
+```json
+{
+  "event": "call_ended",
+  "call": {
+    "id": "web_87a50aa10731e2b1df4443a8007",
+    "type": "web_call",
+    "agent_id": "1234",
+    "dynamic_variables": {
+      "name": "Sara (Test)",
+      "current_date": "Monday, February 3, 2025"
+    },
+    "status": "ended",
+    "start_timestamp": 1738537527378,
+    "end_timestamp": 1738537551414,
+    "duration_ms": 24036,
+    "recording_url": "https://example.com/recording.wav",
+    "disconnection_reason": "user_hangup",
+    "from_number": "+12185856761",
+    "to_number": "+528443804581",
+    "direction": "outbound",
+    "transcript": "Full conversation transcript..."
+  }
+}
+```
+
+## Best Practices
+
+### Security
+- Always verify webhook signatures using your webhook secret
+- Only accept webhooks over HTTPS
+- Rotate webhook secrets periodically
+
+### Implementation
+- Process webhooks asynchronously
+- Return a 2xx status code quickly to acknowledge receipt
+- Implement retry logic for failed webhook deliveries
+- Store raw webhook payloads for debugging
+- Handle duplicate deliveries (use `call.id` for idempotency)
+- Check `call.id` prefix to differentiate test/campaign calls
+- Don't assume campaign fields will be present
+
+### Error Handling
+- Set up monitoring for webhook processing
+- Log failed webhook deliveries
+- Alert on repeated failures
+- Implement dead letter queues for failed webhooks
+
+<Note>
+  Need help implementing webhooks? Contact our [support team](mailto:support@example.com) for assistance.
+</Note> 
